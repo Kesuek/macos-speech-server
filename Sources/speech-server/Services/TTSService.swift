@@ -25,7 +25,7 @@ protocol TTSService: Sendable {
 // MARK: - Default implementation
 extension TTSService {
     func language(for voiceName: String) -> String {
-        return "en"
+        "en"
     }
 }
 

@@ -75,7 +75,7 @@ final class AVSpeechTTSService: TTSService, Sendable {
 
     /// Return the actual language code for a voice name (e.g. "de-DE", "en-US").
     func language(for voiceName: String) -> String {
-        return voiceLanguageLookup[voiceName.lowercased()] ?? "en"
+        voiceLanguageLookup[voiceName.lowercased()] ?? "en"
     }
 
     /// Synthesises all sentences, accumulates Float32 samples, applies peak normalisation,
