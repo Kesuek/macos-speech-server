@@ -16,10 +16,20 @@ protocol TTSService: Sendable {
 
     /// All voice names supported by this engine.
     var availableVoices: [String] { get }
+
+    /// Language code for a given voice name (e.g. "de-DE", "en-US").
+    /// Returns "en" as fallback when the language cannot be determined.
+    func language(for voiceName: String) -> String
+}
+
+// MARK: - Default implementation
+extension TTSService {
+    func language(for voiceName: String) -> String {
+        return "en"
+    }
 }
 
 // MARK: - Vapor DI
-
 struct TTSServiceKey: StorageKey {
     typealias Value = any TTSService
 }

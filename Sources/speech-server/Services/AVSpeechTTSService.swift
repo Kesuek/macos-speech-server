@@ -11,6 +11,7 @@ import Logging
 /// - All stored properties are immutable `let`, so `Sendable` conformance is genuine.
 /// - `voiceLookup` stores identifier strings (not `AVSpeechSynthesisVoice` objects)
 ///   to avoid questions about the framework type's `Sendable` status.
+/// - `voiceLanguageLookup` stores language codes keyed by voice name.
 /// - Each `write()` call creates a fresh `AVSpeechSynthesizer` instance per request.
 ///   `AVSpeechSynthesizer.write(_:toBufferCallback:)` is asynchronous: it returns
 ///   immediately and delivers audio buffers on a background thread. The zero-length
@@ -22,6 +23,8 @@ final class AVSpeechTTSService: TTSService, Sendable {
 
     // Maps lowercase voice name or full identifier -> canonical identifier.
     private let voiceLookup: [String: String]
+    // Maps lowercase voice name -> language code (e.g. "anna" -> "de-DE").
+    private let voiceLanguageLookup: [String: String]
     private let logger: Logger
 
     init(settings: AVSpeechSettings = AVSpeechSettings()) {
@@ -31,11 +34,14 @@ final class AVSpeechTTSService: TTSService, Sendable {
 
         // Build lookup: lowercase short name -> identifier, and lowercase identifier -> identifier.
         var lookup: [String: String] = [:]
+        var langLookup: [String: String] = [:]
         for voice in voices {
             lookup[voice.name.lowercased()] = voice.identifier
             lookup[voice.identifier.lowercased()] = voice.identifier
+            langLookup[voice.name.lowercased()] = voice.language
         }
         self.voiceLookup = lookup
+        self.voiceLanguageLookup = langLookup
 
         // Deduplicated, sorted voice names for the availableVoices list.
         let nameSet = Set(voices.map { $0.name })
@@ -66,6 +72,11 @@ final class AVSpeechTTSService: TTSService, Sendable {
     }
 
     // MARK: - TTSService
+
+    /// Return the actual language code for a voice name (e.g. "de-DE", "en-US").
+    func language(for voiceName: String) -> String {
+        return voiceLanguageLookup[voiceName.lowercased()] ?? "en"
+    }
 
     /// Synthesises all sentences, accumulates Float32 samples, applies peak normalisation,
     /// and returns a complete WAV file.
