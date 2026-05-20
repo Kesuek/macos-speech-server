@@ -80,7 +80,8 @@ final class AVSpeechTTSService: TTSService, Sendable {
             let samples = try await synthesizeFloatSamples(
                 text: text, voiceIdentifier: identifier)
             allSamples.append(contentsOf: samples)
-        } else {
+        }
+        else {
             for sentence in splitSentences(text) {
                 let samples = try await synthesizeFloatSamples(
                     text: sentence, voiceIdentifier: identifier)
@@ -113,7 +114,8 @@ final class AVSpeechTTSService: TTSService, Sendable {
         if text.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("<speak") {
             // SSML: don't split, synthesise as one block
             sentences = [text]
-        } else {
+        }
+        else {
             sentences = splitSentences(text)
         }
         logger.notice("AVSpeech synthesizeStream: \(sentences.count) sentence(s)")
@@ -191,7 +193,8 @@ final class AVSpeechTTSService: TTSService, Sendable {
                             contentsOf: UnsafeBufferPointer(start: channelData[0], count: count))
                     }
                 }
-            } else {
+            }
+            else {
                 // Plain text mode
                 let utterance = AVSpeechUtterance(string: text)
                 utterance.voice = AVSpeechSynthesisVoice(identifier: voiceIdentifier)
