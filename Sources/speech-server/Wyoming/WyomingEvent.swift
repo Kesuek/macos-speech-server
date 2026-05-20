@@ -15,41 +15,37 @@ struct WyomingEvent: Sendable {
     }
 
     /// Serializes the event to wire bytes per the Wyoming protocol.
+    ///
+    /// Wyoming protocol wire format (from rhasspy3 docs):
+    /// - A single line of JSON with fields: type (required), version, data (optional object),
+    ///   payload_length (optional, number > 0)
+    /// - If payload_length is given, exactly that many bytes follow the newline-terminated JSON line
+    ///
+    /// The `data` dictionary is serialized inline in the header JSON, NOT as a
+    /// separate block after the header. The `data_length` field is non-standard
+    /// and is NOT used.
     func serialize() -> Data {
         var output = Data()
 
-        // Encode data section first to know its byte length
-        var dataBytes: Data? = nil
-        if !data.isEmpty {
-            if let encoded = try? JSONEncoder().encode(data) {
-                dataBytes = encoded
-            }
-        }
-
-        // Build header dict
-        var headerDict: [String: Any] = [
-            "type": type,
-            "version": version,
+        // Build header dict using WyomingValue for consistent JSONEncodable encoding
+        var headerFields: [String: WyomingValue] = [
+            "type": .string(type),
+            "version": .string(version),
         ]
-        if let db = dataBytes {
-            headerDict["data_length"] = db.count
+        if !data.isEmpty {
+            headerFields["data"] = .object(data)
         }
         if let p = payload {
-            headerDict["payload_length"] = p.count
+            headerFields["payload_length"] = .int(p.count)
         }
 
-        // Serialize header as compact JSON + newline
-        if let headerData = try? JSONSerialization.data(withJSONObject: headerDict, options: []) {
+        // Serialize header as compact JSON + newline using JSONEncoder (which handles WyomingValue)
+        if let headerData = try? JSONEncoder().encode(headerFields) {
             output.append(headerData)
         }
         output.append(0x0A)  // '\n'
 
-        // Append data section
-        if let db = dataBytes {
-            output.append(db)
-        }
-
-        // Append payload
+        // Append payload (binary data, after the newline)
         if let p = payload {
             output.append(p)
         }
