@@ -75,10 +75,18 @@ final class AVSpeechTTSService: TTSService, Sendable {
         }
 
         var allSamples: [Float] = []
-        for sentence in splitSentences(text) {
+        if text.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("<speak") {
+            // SSML: don't split sentences, synthesise the whole block at once
             let samples = try await synthesizeFloatSamples(
-                text: sentence, voiceIdentifier: identifier)
+                text: text, voiceIdentifier: identifier)
             allSamples.append(contentsOf: samples)
+        }
+        else {
+            for sentence in splitSentences(text) {
+                let samples = try await synthesizeFloatSamples(
+                    text: sentence, voiceIdentifier: identifier)
+                allSamples.append(contentsOf: samples)
+            }
         }
 
         if allSamples.isEmpty {
@@ -102,7 +110,14 @@ final class AVSpeechTTSService: TTSService, Sendable {
             }
         }
 
-        let sentences = splitSentences(text)
+        let sentences: [String]
+        if text.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("<speak") {
+            // SSML: don't split, synthesise as one block
+            sentences = [text]
+        }
+        else {
+            sentences = splitSentences(text)
+        }
         logger.notice("AVSpeech synthesizeStream: \(sentences.count) sentence(s)")
 
         return AsyncThrowingStream { continuation in
@@ -131,6 +146,9 @@ final class AVSpeechTTSService: TTSService, Sendable {
     /// `write(_:toBufferCallback:)` is asynchronous: it returns immediately and delivers
     /// audio buffers on a background thread. The continuation is resumed from the
     /// zero-length buffer callback, which fires when synthesis is complete.
+    ///
+    /// If the text starts with `<speak` it is treated as SSML (via
+    /// `AVSpeechUtterance(ssmlRepresentation:)`), otherwise as plain text.
     private func synthesizeFloatSamples(
         text: String, voiceIdentifier: String
     ) async throws
@@ -149,27 +167,53 @@ final class AVSpeechTTSService: TTSService, Sendable {
         return try await withCheckedThrowingContinuation {
             (continuation: CheckedContinuation<[Float], Error>) in
             let synthesizer = AVSpeechSynthesizer()
-            let utterance = AVSpeechUtterance(string: text)
-            utterance.voice = AVSpeechSynthesisVoice(identifier: voiceIdentifier)
 
-            // write() returns immediately; callbacks fire asynchronously.
-            // The closure captures `synthesizer` to keep it alive until synthesis completes.
-            synthesizer.write(utterance) { [synthesizer] buffer in
-                _ = synthesizer  // retain until this callback fires
-                guard let pcmBuffer = buffer as? AVAudioPCMBuffer else { return }
-                if pcmBuffer.frameLength == 0 {
-                    // Zero-length buffer signals end of utterance.
-                    // Guard against double-resume in case multiple zero-length buffers arrive.
-                    if !bridge.resumed {
-                        bridge.resumed = true
-                        continuation.resume(returning: bridge.samples)
-                    }
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.hasPrefix("<speak") {
+                // SSML mode
+                guard let utterance = AVSpeechUtterance(ssmlRepresentation: text) else {
+                    continuation.resume(throwing: AVSpeechTTSError.invalidSSML)
                     return
                 }
-                if let channelData = pcmBuffer.floatChannelData {
-                    let count = Int(pcmBuffer.frameLength)
-                    bridge.samples.append(
-                        contentsOf: UnsafeBufferPointer(start: channelData[0], count: count))
+                utterance.voice = AVSpeechSynthesisVoice(identifier: voiceIdentifier)
+
+                synthesizer.write(utterance) { [synthesizer] buffer in
+                    _ = synthesizer
+                    guard let pcmBuffer = buffer as? AVAudioPCMBuffer else { return }
+                    if pcmBuffer.frameLength == 0 {
+                        if !bridge.resumed {
+                            bridge.resumed = true
+                            continuation.resume(returning: bridge.samples)
+                        }
+                        return
+                    }
+                    if let channelData = pcmBuffer.floatChannelData {
+                        let count = Int(pcmBuffer.frameLength)
+                        bridge.samples.append(
+                            contentsOf: UnsafeBufferPointer(start: channelData[0], count: count))
+                    }
+                }
+            }
+            else {
+                // Plain text mode
+                let utterance = AVSpeechUtterance(string: text)
+                utterance.voice = AVSpeechSynthesisVoice(identifier: voiceIdentifier)
+
+                synthesizer.write(utterance) { [synthesizer] buffer in
+                    _ = synthesizer
+                    guard let pcmBuffer = buffer as? AVAudioPCMBuffer else { return }
+                    if pcmBuffer.frameLength == 0 {
+                        if !bridge.resumed {
+                            bridge.resumed = true
+                            continuation.resume(returning: bridge.samples)
+                        }
+                        return
+                    }
+                    if let channelData = pcmBuffer.floatChannelData {
+                        let count = Int(pcmBuffer.frameLength)
+                        bridge.samples.append(
+                            contentsOf: UnsafeBufferPointer(start: channelData[0], count: count))
+                    }
                 }
             }
         }
@@ -181,6 +225,7 @@ final class AVSpeechTTSService: TTSService, Sendable {
 enum AVSpeechTTSError: Error, CustomStringConvertible {
     case voiceNotFound(String)
     case noAudioProduced
+    case invalidSSML
 
     var description: String {
         switch self {
@@ -188,6 +233,8 @@ enum AVSpeechTTSError: Error, CustomStringConvertible {
             return "Voice '\(voice)' is not available. Use a system voice name (e.g. 'Samantha') or full identifier."
         case .noAudioProduced:
             return "AVSpeechSynthesizer produced no audio for the given input."
+        case .invalidSSML:
+            return "SSML input could not be parsed."
         }
     }
 }
