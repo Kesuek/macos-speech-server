@@ -651,7 +651,6 @@ final class WyomingSessionTests: XCTestCase {
         let events = decodeEvents(from: infoResponses)
         XCTAssertEqual(events[0].type, "info")
     }
-}
 
     // MARK: - TTS language in describe
 
@@ -677,9 +676,9 @@ final class WyomingSessionTests: XCTestCase {
 
         for voiceValue in voices! {
             guard let voiceObj = voiceValue.objectValue,
-                  let name = voiceObj["name"]?.stringValue,
-                  let langs = voiceObj["languages"]?.arrayValue,
-                  let firstLang = langs.first?.stringValue
+                let name = voiceObj["name"]?.stringValue,
+                let langs = voiceObj["languages"]?.arrayValue,
+                let firstLang = langs.first?.stringValue
             else {
                 XCTFail("Voice entry missing name or languages")
                 continue
@@ -774,6 +773,8 @@ final class WyomingSessionTests: XCTestCase {
             }
         }
         let tts = MinimalTTS()
-        XCTAssertEqual(tts.language(for: "anything"), "en",
-                       "Default language(for:) implementation must return 'en'")
+        XCTAssertEqual(
+            tts.language(for: "anything"), "en",
+            "Default language(for:) implementation must return 'en'")
     }
+}

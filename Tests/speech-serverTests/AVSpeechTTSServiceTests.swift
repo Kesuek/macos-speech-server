@@ -154,7 +154,6 @@ final class AVSpeechTTSServiceTests: XCTestCase {
         let data = try await service.synthesize(text: "Hi.", voice: avVoice.identifier)
         XCTAssertGreaterThan(data.count, 44)
     }
-}
 
     // MARK: - Language reporting
 
@@ -219,3 +218,4 @@ final class AVSpeechTTSServiceTests: XCTestCase {
             "German voice '\(germanVoice.name)' should report a de-* language, got '\(lang)'"
         )
     }
+}
