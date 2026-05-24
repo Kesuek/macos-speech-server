@@ -35,6 +35,10 @@ struct MockTTSService: TTSService {
         voiceLanguages[voiceName.lowercased()] ?? "en"
     }
 
+    func languages(for voiceName: String) -> [String] {
+        [language(for: voiceName)]
+    }
+
     func synthesize(text: String, voice: String) async throws -> Data {
         if shouldFail { throw MockServiceError.failed }
         return chunks.reduce(Data(), +)

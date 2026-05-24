@@ -387,7 +387,7 @@ actor WyomingSession {
                 "attribution": serverAttribution,
                 "installed": .bool(true),
                 "version": .string("1.0.0"),
-                "languages": .array([.string(ttsService.language(for: name))]),
+                "languages": .array(ttsService.languages(for: name).map { .string($0) }),
             ])
         }
 

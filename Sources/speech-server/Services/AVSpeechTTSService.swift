@@ -23,8 +23,8 @@ final class AVSpeechTTSService: TTSService, Sendable {
 
     // Maps lowercase voice name or full identifier -> canonical identifier.
     private let voiceLookup: [String: String]
-    // Maps lowercase voice name -> language code (e.g. "anna" -> "de-DE").
-    private let voiceLanguageLookup: [String: String]
+    // Maps lowercase voice name -> all language codes (e.g. "eddy" -> ["de-DE", "en-GB", ...]).
+    private let voiceLanguageLookup: [String: [String]]
     private let logger: Logger
 
     init(settings: AVSpeechSettings = AVSpeechSettings()) {
@@ -34,11 +34,11 @@ final class AVSpeechTTSService: TTSService, Sendable {
 
         // Build lookup: lowercase short name -> identifier, and lowercase identifier -> identifier.
         var lookup: [String: String] = [:]
-        var langLookup: [String: String] = [:]
+        var langLookup: [String: [String]] = [:]
         for voice in voices {
             lookup[voice.name.lowercased()] = voice.identifier
             lookup[voice.identifier.lowercased()] = voice.identifier
-            langLookup[voice.name.lowercased()] = voice.language
+            langLookup[voice.name.lowercased(), default: []].append(voice.language)
         }
         self.voiceLookup = lookup
         self.voiceLanguageLookup = langLookup
@@ -75,7 +75,11 @@ final class AVSpeechTTSService: TTSService, Sendable {
 
     /// Return the actual language code for a voice name (e.g. "de-DE", "en-US").
     func language(for voiceName: String) -> String {
-        voiceLanguageLookup[voiceName.lowercased()] ?? "en"
+        voiceLanguageLookup[voiceName.lowercased()]?.first ?? "en"
+    }
+
+    func languages(for voiceName: String) -> [String] {
+        voiceLanguageLookup[voiceName.lowercased()] ?? ["en"]
     }
 
     /// Synthesises all sentences, accumulates Float32 samples, applies peak normalisation,
