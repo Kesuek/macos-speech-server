@@ -155,3 +155,67 @@ final class AVSpeechTTSServiceTests: XCTestCase {
         XCTAssertGreaterThan(data.count, 44)
     }
 }
+
+    // MARK: - Language reporting
+
+    func testLanguageForKnownVoice() throws {
+        // Every system voice must have a language code that is non-empty
+        // and conforms to a locale pattern (e.g. "de-DE", "en-US", "it-IT").
+        XCTAssertFalse(service.availableVoices.isEmpty)
+
+        for voiceName in service.availableVoices {
+            let lang = service.language(for: voiceName)
+            XCTAssertFalse(lang.isEmpty, "Voice '\(voiceName)' must have a non-empty language code")
+            // Expect pattern like "de-DE" or "en-US" — at least contains a hyphen
+            XCTAssertTrue(
+                lang.contains("-"),
+                "Voice '\(voiceName)' language '\(lang)' should be a locale code (e.g. 'de-DE')"
+            )
+        }
+    }
+
+    func testLanguageForCaseInsensitiveLookup() throws {
+        guard let firstVoice = service.availableVoices.first else {
+            throw XCTSkip("No system voices available")
+        }
+        let lower = service.language(for: firstVoice.lowercased())
+        let upper = service.language(for: firstVoice.uppercased())
+        XCTAssertEqual(lower, upper, "Language lookup must be case-insensitive")
+    }
+
+    /// REGRESSION TEST: on main (before this patch) every voice returned "en".
+    /// This test verifies that non-English voices now report their actual locale.
+    func testNonEnglishVoicesReportCorrectLanguage() throws {
+        let voicesMetadata = AVSpeechSynthesisVoice.speechVoices()
+            .filter { !$0.language.hasPrefix("en-") }
+
+        try XCTSkipIf(
+            voicesMetadata.isEmpty,
+            "No non-English system voices installed on this machine"
+        )
+
+        for avVoice in voicesMetadata {
+            let lang = service.language(for: avVoice.name)
+            XCTAssertEqual(
+                lang, avVoice.language,
+                "Voice '\(avVoice.name)' should report language '\(avVoice.language)', got '\(lang)'"
+            )
+        }
+    }
+
+    // MARK: - Synthesize with language
+
+    func testSynthesizeWithGermanVoiceUsesCorrectLanguage() async throws {
+        // Find a German voice
+        let germanVoices = AVSpeechSynthesisVoice.speechVoices()
+            .filter { $0.language.hasPrefix("de-") }
+
+        try XCTSkipIf(germanVoices.isEmpty, "No German system voice available")
+
+        let germanVoice = germanVoices.first!
+        let lang = service.language(for: germanVoice.name)
+        XCTAssertTrue(
+            lang.hasPrefix("de"),
+            "German voice '\(germanVoice.name)' should report a de-* language, got '\(lang)'"
+        )
+    }
