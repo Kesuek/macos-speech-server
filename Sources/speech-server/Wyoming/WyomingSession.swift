@@ -25,7 +25,11 @@ struct STTInfo: Sendable {
     static let parakeet = STTInfo(
         modelName: "parakeet-tdt-0.6b",
         modelDescription: "Parakeet TDT 0.6B on-device ASR via FluidAudio",
-        languages: ["en"]
+        languages: [
+            "bg", "hr", "cs", "da", "nl", "en", "et", "fi", "fr", "de",
+            "el", "hu", "it", "lv", "lt", "mt", "pl", "pt", "ro", "sk",
+            "sl", "es", "sv", "ru", "uk",
+        ]
     )
 
     static let qwen3 = STTInfo(
