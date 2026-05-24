@@ -184,9 +184,15 @@ final class AVSpeechTTSServiceTests: XCTestCase {
 
     /// REGRESSION TEST: on main (before this patch) every voice returned "en".
     /// This test verifies that non-English voices now report their actual locale.
+    /// NOTE: Some voices (Eddy, Sandy, etc.) appear once per locale with the same
+    /// name. voiceLanguageLookup maps name -> language (last write wins), so we
+    /// deduplicate by name before checking.
     func testNonEnglishVoicesReportCorrectLanguage() throws {
+        var seenNames: Set<String> = []
         let voicesMetadata = AVSpeechSynthesisVoice.speechVoices()
-            .filter { !$0.language.hasPrefix("en-") }
+            .filter {
+                !$0.language.hasPrefix("en-") && seenNames.insert($0.name).inserted
+            }
 
         try XCTSkipIf(
             voicesMetadata.isEmpty,
@@ -205,9 +211,10 @@ final class AVSpeechTTSServiceTests: XCTestCase {
     // MARK: - Synthesize with language
 
     func testSynthesizeWithGermanVoiceUsesCorrectLanguage() async throws {
-        // Find a German voice
+        // Find a German voice (deduplicated by name)
+        var seenNames: Set<String> = []
         let germanVoices = AVSpeechSynthesisVoice.speechVoices()
-            .filter { $0.language.hasPrefix("de-") }
+            .filter { $0.language.hasPrefix("de-") && seenNames.insert($0.name).inserted }
 
         try XCTSkipIf(germanVoices.isEmpty, "No German system voice available")
 
