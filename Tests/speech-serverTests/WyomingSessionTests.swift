@@ -46,7 +46,8 @@ final class WyomingSessionTests: XCTestCase {
 
         // Must have both asr and tts arrays
         guard let asrArray = info.data["asr"]?.arrayValue,
-              let ttsArray = info.data["tts"]?.arrayValue else {
+            let ttsArray = info.data["tts"]?.arrayValue
+        else {
             XCTFail("info response missing asr or tts arrays")
             return
         }
@@ -55,10 +56,11 @@ final class WyomingSessionTests: XCTestCase {
 
         // ASR program must have a "models" array (two-level hierarchy)
         guard let asrProgram = asrArray[0].objectValue,
-              let asrModels = asrProgram["models"]?.arrayValue,
-              !asrModels.isEmpty,
-              let firstAsrModel = asrModels[0].objectValue,
-              let asrModelLangs = firstAsrModel["languages"]?.arrayValue else {
+            let asrModels = asrProgram["models"]?.arrayValue,
+            !asrModels.isEmpty,
+            let firstAsrModel = asrModels[0].objectValue,
+            let asrModelLangs = firstAsrModel["languages"]?.arrayValue
+        else {
             XCTFail("ASR program structure invalid or missing languages on model")
             return
         }
@@ -70,10 +72,11 @@ final class WyomingSessionTests: XCTestCase {
 
         // TTS program must have a "voices" array; each voice has "languages"
         guard let ttsProgram = ttsArray[0].objectValue,
-              let voices = ttsProgram["voices"]?.arrayValue,
-              !voices.isEmpty,
-              let albaVoice = voices[0].objectValue,
-              let voiceLangs = albaVoice["languages"]?.arrayValue else {
+            let voices = ttsProgram["voices"]?.arrayValue,
+            !voices.isEmpty,
+            let albaVoice = voices[0].objectValue,
+            let voiceLangs = albaVoice["languages"]?.arrayValue
+        else {
             XCTFail("TTS program structure invalid or missing voices/languages")
             return
         }
@@ -716,17 +719,19 @@ final class WyomingSessionTests: XCTestCase {
         let info = events[0]
 
         guard let ttsArray = info.data["tts"]?.arrayValue,
-              let ttsProgram = ttsArray[0].objectValue,
-              let voices = ttsProgram["voices"]?.arrayValue else {
+            let ttsProgram = ttsArray[0].objectValue,
+            let voices = ttsProgram["voices"]?.arrayValue
+        else {
             XCTFail("TTS program or voices array missing")
             return
         }
 
         for voiceValue in voices {
             guard let voiceObj = voiceValue.objectValue,
-                  let name = voiceObj["name"]?.stringValue,
-                  let langs = voiceObj["languages"]?.arrayValue,
-                  let firstLang = langs.first?.stringValue else {
+                let name = voiceObj["name"]?.stringValue,
+                let langs = voiceObj["languages"]?.arrayValue,
+                let firstLang = langs.first?.stringValue
+            else {
                 XCTFail("Voice entry missing name or languages")
                 continue
             }
