@@ -221,7 +221,10 @@ final class AVSpeechTTSServiceTests: XCTestCase {
 
         try XCTSkipIf(germanVoices.isEmpty, "No German system voice available")
 
-        let germanVoice = germanVoices.first!
+        guard let germanVoice = germanVoices.first else {
+            XCTFail("No German voice found after skip")
+            return
+        }
         let lang = service.language(for: germanVoice.name)
         XCTAssertTrue(
             lang.hasPrefix("de"),

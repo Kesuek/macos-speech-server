@@ -45,42 +45,41 @@ final class WyomingSessionTests: XCTestCase {
         let info = events[0]
 
         // Must have both asr and tts arrays
-        let asrArray = info.data["asr"]?.arrayValue
-        let ttsArray = info.data["tts"]?.arrayValue
-        XCTAssertNotNil(asrArray)
-        XCTAssertNotNil(ttsArray)
-        XCTAssertFalse(asrArray!.isEmpty)
-        XCTAssertFalse(ttsArray!.isEmpty)
+        guard let asrArray = info.data["asr"]?.arrayValue,
+              let ttsArray = info.data["tts"]?.arrayValue else {
+            XCTFail("info response missing asr or tts arrays")
+            return
+        }
+        XCTAssertFalse(asrArray.isEmpty, "asr array should not be empty")
+        XCTAssertFalse(ttsArray.isEmpty, "tts array should not be empty")
 
         // ASR program must have a "models" array (two-level hierarchy)
-        let asrProgram = asrArray![0].objectValue
-        XCTAssertNotNil(asrProgram)
-        XCTAssertEqual(asrProgram?["installed"]?.boolValue, true)
+        guard let asrProgram = asrArray[0].objectValue,
+              let asrModels = asrProgram["models"]?.arrayValue,
+              !asrModels.isEmpty,
+              let firstAsrModel = asrModels[0].objectValue,
+              let asrModelLangs = firstAsrModel["languages"]?.arrayValue else {
+            XCTFail("ASR program structure invalid or missing languages on model")
+            return
+        }
+        XCTAssertEqual(asrProgram["installed"]?.boolValue, true)
         // languages must NOT be on the program — it lives on the model
-        XCTAssertNil(asrProgram?["languages"])
-        let asrModels = asrProgram?["models"]?.arrayValue
-        XCTAssertNotNil(asrModels)
-        XCTAssertFalse(asrModels!.isEmpty)
-        let firstAsrModel = asrModels![0].objectValue
-        XCTAssertNotNil(firstAsrModel)
-        XCTAssertEqual(firstAsrModel?["installed"]?.boolValue, true)
-        let asrModelLangs = firstAsrModel?["languages"]?.arrayValue
-        XCTAssertNotNil(asrModelLangs)
-        XCTAssertTrue(asrModelLangs!.contains(where: { $0.stringValue == "en" }))
+        XCTAssertNil(asrProgram["languages"])
+        XCTAssertEqual(firstAsrModel["installed"]?.boolValue, true)
+        XCTAssertTrue(asrModelLangs.contains(where: { $0.stringValue == "en" }))
 
         // TTS program must have a "voices" array; each voice has "languages"
-        let ttsProgram = ttsArray![0].objectValue
-        XCTAssertNotNil(ttsProgram)
-        // languages must NOT be on the program — it lives on the voice
-        XCTAssertNil(ttsProgram?["languages"])
-        let voices = ttsProgram?["voices"]?.arrayValue
-        XCTAssertNotNil(voices)
-        XCTAssertFalse(voices!.isEmpty)
-        let albaVoice = voices![0].objectValue
-        XCTAssertEqual(albaVoice?["name"]?.stringValue, "alba")
-        let voiceLangs = albaVoice?["languages"]?.arrayValue
-        XCTAssertNotNil(voiceLangs)
-        XCTAssertTrue(voiceLangs!.contains(where: { $0.stringValue == "en" }))
+        guard let ttsProgram = ttsArray[0].objectValue,
+              let voices = ttsProgram["voices"]?.arrayValue,
+              !voices.isEmpty,
+              let albaVoice = voices[0].objectValue,
+              let voiceLangs = albaVoice["languages"]?.arrayValue else {
+            XCTFail("TTS program structure invalid or missing voices/languages")
+            return
+        }
+        XCTAssertNil(ttsProgram["languages"])
+        XCTAssertEqual(albaVoice["name"]?.stringValue, "alba")
+        XCTAssertTrue(voiceLangs.contains(where: { $0.stringValue == "en" }))
 
         // Empty arrays for unsupported services must be present
         XCTAssertEqual(info.data["handle"]?.arrayValue?.count, 0)
@@ -716,15 +715,21 @@ final class WyomingSessionTests: XCTestCase {
         let events = decodeEvents(from: responses)
         let info = events[0]
 
-        let ttsArray = info.data["tts"]?.arrayValue
-        let ttsProgram = ttsArray![0].objectValue
-        let voices = ttsProgram?["voices"]?.arrayValue!
+        guard let ttsArray = info.data["tts"]?.arrayValue,
+              let ttsProgram = ttsArray[0].objectValue,
+              let voices = ttsProgram["voices"]?.arrayValue else {
+            XCTFail("TTS program or voices array missing")
+            return
+        }
 
-        for voiceValue in voices! {
-            let voiceObj = voiceValue.objectValue!
-            let name = voiceObj["name"]?.stringValue!
-            let langs = voiceObj["languages"]?.arrayValue!
-            let firstLang = langs!.first!.stringValue!
+        for voiceValue in voices {
+            guard let voiceObj = voiceValue.objectValue,
+                  let name = voiceObj["name"]?.stringValue,
+                  let langs = voiceObj["languages"]?.arrayValue,
+                  let firstLang = langs.first?.stringValue else {
+                XCTFail("Voice entry missing name or languages")
+                continue
+            }
 
             XCTAssertNotEqual(
                 firstLang, "en",

@@ -33,7 +33,7 @@ extension TTSService {
     }
 
     func languages(for voiceName: String) -> [String] {
-        ["en"]
+        [language(for: voiceName)]
     }
 }
 
