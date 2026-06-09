@@ -75,7 +75,7 @@ final class AVSpeechTTSService: TTSService, Sendable {
         }
 
         var allSamples: [Float] = []
-        if text.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("<speak") {
+        if isSSML(text) {
             // SSML: don't split sentences, synthesise the whole block at once
             let samples = try await synthesizeFloatSamples(
                 text: text, voiceIdentifier: identifier)
@@ -111,7 +111,7 @@ final class AVSpeechTTSService: TTSService, Sendable {
         }
 
         let sentences: [String]
-        if text.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("<speak") {
+        if isSSML(text) {
             // SSML: don't split, synthesise as one block
             sentences = [text]
         }
@@ -141,6 +141,11 @@ final class AVSpeechTTSService: TTSService, Sendable {
 
     // MARK: - Private synthesis helpers
 
+    /// Detect whether input text is SSML (starts with <speak after trimming).
+    private func isSSML(_ text: String) -> Bool {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("<speak")
+    }
+
     /// Synthesises one utterance and returns the concatenated Float32 samples.
     ///
     /// `write(_:toBufferCallback:)` is asynchronous: it returns immediately and delivers
@@ -168,52 +173,33 @@ final class AVSpeechTTSService: TTSService, Sendable {
             (continuation: CheckedContinuation<[Float], Error>) in
             let synthesizer = AVSpeechSynthesizer()
 
-            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.hasPrefix("<speak") {
-                // SSML mode
-                guard let utterance = AVSpeechUtterance(ssmlRepresentation: text) else {
+            let utterance: AVSpeechUtterance
+            if isSSML(text) {
+                guard let u = AVSpeechUtterance(ssmlRepresentation: text) else {
                     continuation.resume(throwing: AVSpeechTTSError.invalidSSML)
                     return
                 }
-                utterance.voice = AVSpeechSynthesisVoice(identifier: voiceIdentifier)
-
-                synthesizer.write(utterance) { [synthesizer] buffer in
-                    _ = synthesizer
-                    guard let pcmBuffer = buffer as? AVAudioPCMBuffer else { return }
-                    if pcmBuffer.frameLength == 0 {
-                        if !bridge.resumed {
-                            bridge.resumed = true
-                            continuation.resume(returning: bridge.samples)
-                        }
-                        return
-                    }
-                    if let channelData = pcmBuffer.floatChannelData {
-                        let count = Int(pcmBuffer.frameLength)
-                        bridge.samples.append(
-                            contentsOf: UnsafeBufferPointer(start: channelData[0], count: count))
-                    }
-                }
+                utterance = u
             }
             else {
-                // Plain text mode
-                let utterance = AVSpeechUtterance(string: text)
-                utterance.voice = AVSpeechSynthesisVoice(identifier: voiceIdentifier)
+                utterance = AVSpeechUtterance(string: text)
+            }
+            utterance.voice = AVSpeechSynthesisVoice(identifier: voiceIdentifier)
 
-                synthesizer.write(utterance) { [synthesizer] buffer in
-                    _ = synthesizer
-                    guard let pcmBuffer = buffer as? AVAudioPCMBuffer else { return }
-                    if pcmBuffer.frameLength == 0 {
-                        if !bridge.resumed {
-                            bridge.resumed = true
-                            continuation.resume(returning: bridge.samples)
-                        }
-                        return
+            synthesizer.write(utterance) { [synthesizer] buffer in
+                _ = synthesizer
+                guard let pcmBuffer = buffer as? AVAudioPCMBuffer else { return }
+                if pcmBuffer.frameLength == 0 {
+                    if !bridge.resumed {
+                        bridge.resumed = true
+                        continuation.resume(returning: bridge.samples)
                     }
-                    if let channelData = pcmBuffer.floatChannelData {
-                        let count = Int(pcmBuffer.frameLength)
-                        bridge.samples.append(
-                            contentsOf: UnsafeBufferPointer(start: channelData[0], count: count))
-                    }
+                    return
+                }
+                if let channelData = pcmBuffer.floatChannelData {
+                    let count = Int(pcmBuffer.frameLength)
+                    bridge.samples.append(
+                        contentsOf: UnsafeBufferPointer(start: channelData[0], count: count))
                 }
             }
         }
