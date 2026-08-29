@@ -45,8 +45,8 @@ final class AVSpeechTTSService: TTSService, Sendable {
             lookup[voice.name.lowercased()] = voice.identifier
             lookup[voice.identifier.lowercased()] = voice.identifier
             let langKey = voice.name.lowercased()
-            if !langLookup[langKey, default: []].contains(voice.language) {
-                langLookup[langKey].append(voice.language)
+            if !(langLookup[langKey]?.contains(voice.language) ?? false) {
+                langLookup[langKey, default: []].append(voice.language)
             }
             idLangLookup[voice.identifier.lowercased()] = voice.language
         }
