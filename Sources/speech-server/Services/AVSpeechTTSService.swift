@@ -99,6 +99,11 @@ final class AVSpeechTTSService: TTSService, Sendable {
 
     /// Streams Int16 LE PCM (no WAV header), one chunk per sentence.
     ///
+    /// Plain text is split into sentences and yields one PCM chunk per sentence.
+    /// SSML input (`<speak>…`) is never split: the whole block is synthesised as a
+    /// single utterance and yields exactly one chunk, regardless of how many
+    /// sentences it contains.
+    ///
     /// All Float32 samples for a sentence are accumulated first, then converted
     /// with a single peak-normalisation pass. Per-buffer normalisation is avoided
     /// because AVSpeech often delivers a quiet tail buffer whose near-zero peak
@@ -141,9 +146,17 @@ final class AVSpeechTTSService: TTSService, Sendable {
 
     // MARK: - Private synthesis helpers
 
-    /// Detect whether input text is SSML (starts with <speak after trimming).
+    /// Detect whether input text is SSML.
+    ///
+    /// The trimmed text must start with the `<speak>` root element: either a bare
+    /// `<speak>` or `<speak ` with attributes. Similar tags whose names merely
+    /// begin with "speak" (e.g. `<speaker>`) are deliberately not treated as SSML
+    /// and are synthesised as plain text instead.
     private func isSSML(_ text: String) -> Bool {
-        text.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("<speak")
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasPrefix("<speak") else { return false }
+        let remainder = trimmed.dropFirst("<speak".count)
+        return remainder.first == ">" || remainder.first?.isWhitespace == true
     }
 
     /// Synthesises one utterance and returns the concatenated Float32 samples.
@@ -175,7 +188,10 @@ final class AVSpeechTTSService: TTSService, Sendable {
 
             let utterance: AVSpeechUtterance
             if isSSML(text) {
-                guard let u = AVSpeechUtterance(ssmlRepresentation: text) else {
+                // Use the trimmed string: isSSML detected on the trimmed text, and
+                // leading whitespace would make ssmlRepresentation parsing fail.
+                let ssml = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard let u = AVSpeechUtterance(ssmlRepresentation: ssml) else {
                     continuation.resume(throwing: AVSpeechTTSError.invalidSSML)
                     return
                 }

@@ -193,6 +193,28 @@ final class AVSpeechTTSServiceTests: XCTestCase {
         XCTAssertGreaterThan(data.count, 44)
     }
 
+    func testSpeakerTagIsNotSSML() async throws {
+        // "<speaker>" shares the "<speak" prefix but is not SSML; it must go
+        // through the plain-text path instead of throwing invalidSSML.
+        let data = try await service.synthesize(
+            text: "<speaker>Hello</speaker>",
+            voice: service.defaultVoice
+        )
+        XCTAssertEqual(data.prefix(4), Data("RIFF".utf8))
+        XCTAssertGreaterThan(data.count, 44)
+    }
+
+    func testSSMLWithLeadingWhitespace() async throws {
+        // Detection trims whitespace, so the SSML parser must receive the
+        // trimmed string — otherwise leading whitespace causes a parse error.
+        let data = try await service.synthesize(
+            text: "\n  <speak>Hello</speak>",
+            voice: service.defaultVoice
+        )
+        XCTAssertEqual(data.prefix(4), Data("RIFF".utf8))
+        XCTAssertGreaterThan(data.count, 44)
+    }
+
     func testSSMLStreamDetection() async throws {
         let stream = service.synthesizeStream(
             text: "<speak>Hello world</speak>",
