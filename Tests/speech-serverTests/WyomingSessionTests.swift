@@ -393,7 +393,7 @@ final class WyomingSessionTests: XCTestCase {
 
         let ttsArray = info.data["tts"]?.arrayValue
         XCTAssertNotNil(ttsArray)
-        let ttsProgram = ttsArray![0].objectValue
+        let ttsProgram = ttsArray?[0].objectValue
         XCTAssertNotNil(ttsProgram)
         XCTAssertEqual(ttsProgram?["supports_synthesize_streaming"]?.boolValue, true)
     }
@@ -670,13 +670,15 @@ final class WyomingSessionTests: XCTestCase {
         let events = decodeEvents(from: responses)
         let info = events[0]
 
-        let ttsArray = info.data["tts"]?.arrayValue
-        XCTAssertNotNil(ttsArray)
-        let ttsProgram = ttsArray![0].objectValue
-        let voices = ttsProgram?["voices"]?.arrayValue
-        XCTAssertNotNil(voices)
+        guard let ttsArray = info.data["tts"]?.arrayValue,
+            let ttsProgram = ttsArray.first?.objectValue,
+            let voices = ttsProgram["voices"]?.arrayValue
+        else {
+            XCTFail("TTS program or voices array missing")
+            return
+        }
 
-        for voiceValue in voices! {
+        for voiceValue in voices {
             guard let voiceObj = voiceValue.objectValue,
                 let name = voiceObj["name"]?.stringValue,
                 let langs = voiceObj["languages"]?.arrayValue,
@@ -761,12 +763,16 @@ final class WyomingSessionTests: XCTestCase {
         let events = decodeEvents(from: responses)
         let info = events[0]
 
-        let ttsArray = info.data["tts"]?.arrayValue
-        let ttsProgram = ttsArray![0].objectValue
-        let voices = ttsProgram?["voices"]?.arrayValue!
-        let firstVoice = voices!.first!.objectValue!
-        let langs = firstVoice["languages"]?.arrayValue!
-        XCTAssertEqual(langs?.first?.stringValue, "en")
+        guard let ttsArray = info.data["tts"]?.arrayValue,
+            let ttsProgram = ttsArray.first?.objectValue,
+            let voices = ttsProgram["voices"]?.arrayValue,
+            let firstVoice = voices.first?.objectValue,
+            let langs = firstVoice["languages"]?.arrayValue
+        else {
+            XCTFail("TTS program, voices or languages missing")
+            return
+        }
+        XCTAssertEqual(langs.first?.stringValue, "en")
     }
 
     // MARK: - TTSService.language(for:) default implementation

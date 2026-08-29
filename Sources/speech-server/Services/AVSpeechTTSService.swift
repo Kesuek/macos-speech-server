@@ -25,6 +25,8 @@ final class AVSpeechTTSService: TTSService, Sendable {
     private let voiceLookup: [String: String]
     // Maps lowercase voice name -> all language codes (e.g. "eddy" -> ["de-DE", "en-GB", ...]).
     private let voiceLanguageLookup: [String: [String]]
+    // Maps lowercase voice identifier -> language code ("com.apple.voice..." -> "de-DE").
+    private let identifierLanguageLookup: [String: String]
     private let logger: Logger
 
     init(settings: AVSpeechSettings = AVSpeechSettings()) {
@@ -33,15 +35,24 @@ final class AVSpeechTTSService: TTSService, Sendable {
         let voices = AVSpeechSynthesisVoice.speechVoices()
 
         // Build lookup: lowercase short name -> identifier, and lowercase identifier -> identifier.
+        // Each voice name may exist in multiple locales (e.g. Eddy, Sandy); the
+        // synthesis path resolves duplicates last-wins (same enumeration order),
+        // so report the full set of locales instead of guessing one.
         var lookup: [String: String] = [:]
         var langLookup: [String: [String]] = [:]
+        var idLangLookup: [String: String] = [:]
         for voice in voices {
             lookup[voice.name.lowercased()] = voice.identifier
             lookup[voice.identifier.lowercased()] = voice.identifier
-            langLookup[voice.name.lowercased(), default: []].append(voice.language)
+            let langKey = voice.name.lowercased()
+            if !langLookup[langKey, default: []].contains(voice.language) {
+                langLookup[langKey].append(voice.language)
+            }
+            idLangLookup[voice.identifier.lowercased()] = voice.language
         }
         self.voiceLookup = lookup
         self.voiceLanguageLookup = langLookup
+        self.identifierLanguageLookup = idLangLookup
 
         // Deduplicated, sorted voice names for the availableVoices list.
         let nameSet = Set(voices.map { $0.name })
@@ -73,11 +84,21 @@ final class AVSpeechTTSService: TTSService, Sendable {
 
     // MARK: - TTSService
 
-    /// Return the actual language code for a voice name (e.g. "de-DE", "en-US").
+    /// Return the locale of the voice that synthesis would actually use.
+    ///
+    /// Voice names can exist in several locales (e.g. "Eddy", "Sandy"); the
+    /// synthesis path resolves such duplicates last-wins via `voiceLookup`.
+    /// This method resolves the same identifier and reports that exact voice's
+    /// locale, so Wyoming `describe` never advertises a language that does not
+    /// match the synthesised audio.
     func language(for voiceName: String) -> String {
-        voiceLanguageLookup[voiceName.lowercased()]?.first ?? "en"
+        guard let identifier = voiceLookup[voiceName.lowercased()],
+            let language = identifierLanguageLookup[identifier.lowercased()]
+        else { return "en" }
+        return language
     }
 
+    /// All locales a voice name is available in (deduplicated, stable order).
     func languages(for voiceName: String) -> [String] {
         voiceLanguageLookup[voiceName.lowercased()] ?? ["en"]
     }
